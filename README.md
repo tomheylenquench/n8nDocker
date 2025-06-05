@@ -83,10 +83,7 @@ D:\source\repos\n8nDocker\
 │   ├── server.crt
 │   ├── server.key
 │   └── fullchain.pem
-└── config\                    # Additional configuration files
-    ├── nginx.conf             # Alternative reverse proxy
-    ├── postgres-init.sql      # Database initialization
-    └── redis.conf             # Redis configuration
+
 ```
 
 ## 🔧 Detailed Setup
