@@ -1,0 +1,286 @@
+version: '3.8'
+
+# Secure n8n Docker Deployment with Queue Mode
+# Combines best practices from both research documents
+# Features: SSL/TLS, Queue mode, PostgreSQL, Redis, Traefik reverse proxy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  n8n_data:
+    driver: local
+  traefik_data:
+    driver: local
+
+networks:
+  web:
+    external: true
+  n8n-backend:
+    driver: bridge
+    internal: false
+  n8n-database:
+    driver: bridge
+    internal: true
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  n8n_encryption_key:
+    file: ./secrets/n8n_encryption_key.txt
+  n8n_admin_password:
+    file: ./secrets/n8n_admin_password.txt
+
+x-shared-n8n: &shared-n8n
+  image: n8nio/n8n:latest
+  restart: unless-stopped
+  user: "1000:1000"
+  security_opt:
+    - no-new-privileges:true
+  environment:
+    # Core Configuration
+    - NODE_ENV=production
+    - GENERIC_TIMEZONE=${TZ:-UTC}
+    - TZ=${TZ:-UTC}
+    
+    # n8n Configuration
+    - N8N_HOST=${N8N_HOST}
+    - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+    - WEBHOOK_URL=${WEBHOOK_URL}
+    - N8N_PORT=5678
+    
+    # Security
+    - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+    - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
+    - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+    - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+    - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
+    
+    # Database Configuration
+    - DB_TYPE=postgresdb
+    - DB_POSTGRESDB_HOST=postgres
+    - DB_POSTGRESDB_PORT=5432
+    - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+    - DB_POSTGRESDB_USER=${POSTGRES_USER}
+    - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+    - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
+    - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
+    
+    # Queue Mode Configuration
+    - EXECUTIONS_MODE=${EXECUTIONS_MODE:-queue}
+    - QUEUE_HEALTH_CHECK_ACTIVE=${QUEUE_HEALTH_CHECK_ACTIVE:-true}
+    - QUEUE_BULL_REDIS_HOST=redis
+    - QUEUE_BULL_REDIS_PORT=6379
+    - QUEUE_BULL_REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    
+    # Performance Settings
+    - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE:-true}
+    - EXECUTIONS_DATA_PRUNE_MAX_COUNT=${EXECUTIONS_DATA_PRUNE_MAX_COUNT:-10000}
+    - EXECUTIONS_TIMEOUT=${EXECUTIONS_TIMEOUT:-3600}
+    - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=${N8N_GRACEFUL_SHUTDOWN_TIMEOUT:-30}
+    
+    # Logging
+    - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+    - N8N_LOG_OUTPUT=${N8N_LOG_OUTPUT:-console}
+    
+  volumes:
+    - n8n_data:/home/node/.n8n
+    - ./certs:/home/node/certs:ro
+  networks:
+    - n8n-backend
+  secrets:
+    - postgres_password
+    - redis_password
+    - n8n_encryption_key
+    - n8n_admin_password
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  # Traefik Reverse Proxy with SSL Termination
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - "--api=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=web"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/letsencrypt
+      - ./certs:/certs:ro
+    networks:
+      - web
+    environment:
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${SSL_EMAIL}
+
+  # PostgreSQL Database with SSL
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./certs:/var/lib/postgresql/certs:ro
+    command: >
+      postgres
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      -c ssl_key_file=/var/lib/postgresql/certs/server.key
+      -c ssl_ca_file=/var/lib/postgresql/certs/ca.crt
+      -c ssl_ciphers='ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256'
+      -c ssl_prefer_server_ciphers=on
+      -c log_connections=on
+      -c log_disconnections=on
+      -c log_statement=mod
+      -c shared_preload_libraries=pg_stat_statements
+    networks:
+      - n8n-database
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Message Broker with Authentication
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    command: >
+      redis-server
+      --requirepass-file /run/secrets/redis_password
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 300
+    volumes:
+      - redis_data:/data
+    networks:
+      - n8n-backend
+    secrets:
+      - redis_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "$(cat /run/secrets/redis_password)", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  # Main n8n Instance (UI and API)
+  n8n:
+    <<: *shared-n8n
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.n8n.rule=Host(`${N8N_HOST}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      # Security headers
+      - "traefik.http.middlewares.n8n-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.n8n-headers.headers.customresponseheaders.X-Frame-Options=SAMEORIGIN"
+      - "traefik.http.middlewares.n8n-headers.headers.customresponseheaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.n8n-headers.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.n8n-headers.headers.customresponseheaders.Strict-Transport-Security=max-age=31536000; includeSubDomains; preload"
+      - "traefik.http.routers.n8n.middlewares=n8n-headers"
+    networks:
+      - web
+      - n8n-backend
+    environment:
+      # Additional main instance settings
+      - N8N_USER_MANAGEMENT_DISABLED=${N8N_USER_MANAGEMENT_DISABLED:-false}
+      - N8N_DISABLE_PRODUCTION_MAIN_PROCESS=${N8N_DISABLE_PRODUCTION_MAIN_PROCESS:-false}
+
+  # n8n Worker Instance 1
+  n8n-worker-1:
+    <<: *shared-n8n
+    command: ["n8n", "worker", "--concurrency=10"]
+    labels:
+      - "traefik.enable=false"
+    environment:
+      # Worker-specific settings (no UI/API)
+      - N8N_DISABLE_UI=true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # n8n Worker Instance 2
+  n8n-worker-2:
+    <<: *shared-n8n
+    command: ["n8n", "worker", "--concurrency=10"]
+    labels:
+      - "traefik.enable=false"
+    environment:
+      # Worker-specific settings (no UI/API)
+      - N8N_DISABLE_UI=true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Optional: n8n Webhook Processor (for high-volume webhooks)
+  # Uncomment if you need dedicated webhook processing
+  # n8n-webhook:
+  #   <<: *shared-n8n
+  #   command: ["n8n", "webhook"]
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=web"
+  #     - "traefik.http.routers.n8n-webhook.rule=Host(`${N8N_HOST}`) && PathPrefix(`/webhook`)"
+  #     - "traefik.http.routers.n8n-webhook.entrypoints=websecure"
+  #     - "traefik.http.routers.n8n-webhook.tls.certresolver=letsencrypt"
+  #     - "traefik.http.services.n8n-webhook.loadbalancer.server.port=5678"
+  #   networks:
+  #     - web
+  #     - n8n-backend
+  #   deploy:
+  #     replicas: 2
+  #     resources:
+  #       limits:
+  #         memory: 512M
+  #       reservations:
+  #         memory: 256M

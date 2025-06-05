@@ -1,0 +1,81 @@
+# n8n Docker Deployment - Git Ignore File
+
+# Environment files with sensitive data
+.env
+.env.local
+.env.production
+
+# Secrets directory - NEVER commit passwords and keys
+secrets/
+!secrets/.gitkeep
+
+# SSL certificates and private keys
+certs/
+!certs/.gitkeep
+
+# Docker volumes and data
+volumes/
+data/
+
+# Backup files
+backups/
+*.backup
+*.sql
+*.tar.gz
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+desktop.ini
+$RECYCLE.BIN/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker override files
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Local development files
+.local/
+local/
+
+# Certificate signing requests and temporary cert files
+*.csr
+*.pem.tmp
+*.key.tmp
+*.crt.tmp
+
+# Database dumps
+*.dump
+*.sql.gz
+
+# Redis dumps
+dump.rdb
+appendonly.aof
+
+# n8n specific
+.n8n/
+
+# PowerShell execution policy bypass files
+*.ps1.tmp
