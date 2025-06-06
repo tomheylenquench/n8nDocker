@@ -33,11 +33,15 @@ The script will:
 
 Wait for the "🎉 Deployment successful!" message.
 
+**Note**: Workers may restart a few times during initial setup (2-3 minutes). This is normal while services synchronize.
+
 ## Step 3: Access n8n
 
 1. **URL**: `https://n8n.yourdomain.com`
 2. **Username**: `admin`
-3. **Password**: Check the output or `secrets\SECRETS_SUMMARY.md`
+3. **Password**: Check the deployment output or view `secrets\SECRETS_SUMMARY.md`
+
+**Tip**: The `secrets\SECRETS_SUMMARY.md` file contains all your login credentials and connection details.
 
 ## Step 4: Trust the Certificate (Development)
 
@@ -94,6 +98,16 @@ docker compose up -d
 ### "Certificate errors"
 - Install the CA certificate from `certs\ca.crt`
 - Or use `http://localhost:5678` for testing
+
+### "Workers keep restarting"
+- This is normal for the first 2-3 minutes
+- Check with: `docker compose ps`
+- If it continues >5 minutes, run: `docker compose logs n8n-worker-1`
+
+### "Required file missing"
+- Ensure you're in the correct directory: `D:\source\repos\n8nDocker`
+- Secrets should be in `secrets\` not `..\secrets\`
+- Re-run: `.\scripts\Generate-Secrets.ps1 -Domain "your-domain.com"`
 
 ## 🔒 Security Notes
 

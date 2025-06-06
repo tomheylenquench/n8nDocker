@@ -7,6 +7,8 @@ version: '3.8'
 volumes:
   postgres_data:
     driver: local
+  postgres_ssl_data:
+    driver: local
   redis_data:
     driver: local
   n8n_data:
@@ -61,13 +63,16 @@ x-shared-n8n: &shared-n8n
     - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
     - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
     
-    # Database Configuration
+    # Database Configuration with SSL
     - DB_TYPE=postgresdb
     - DB_POSTGRESDB_HOST=postgres
     - DB_POSTGRESDB_PORT=5432
     - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
     - DB_POSTGRESDB_USER=${POSTGRES_USER}
     - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+    - DB_POSTGRESDB_SSL=true
+    - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
+    - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
     
     # Redis Configuration (needed for environment variable access)
     - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -145,7 +150,26 @@ services:
     environment:
       - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${SSL_EMAIL}
 
-  # PostgreSQL Database
+  # PostgreSQL SSL Certificate Setup
+  postgres-ssl-setup:
+    image: postgres:16
+    user: "0:0"
+    volumes:
+      - postgres_ssl_data:/var/lib/postgresql/ssl
+      - ./certs:/tmp/certs:ro
+    command: >
+      sh -c "
+      mkdir -p /var/lib/postgresql/ssl &&
+      cp /tmp/certs/server.crt /var/lib/postgresql/ssl/ &&
+      cp /tmp/certs/server.key /var/lib/postgresql/ssl/ &&
+      cp /tmp/certs/ca.crt /var/lib/postgresql/ssl/ &&
+      chmod 644 /var/lib/postgresql/ssl/server.crt &&
+      chmod 600 /var/lib/postgresql/ssl/server.key &&
+      chmod 644 /var/lib/postgresql/ssl/ca.crt &&
+      chown 999:999 /var/lib/postgresql/ssl/server.crt /var/lib/postgresql/ssl/server.key /var/lib/postgresql/ssl/ca.crt
+      "
+
+  # PostgreSQL Database with SSL
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -159,8 +183,16 @@ services:
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_ssl_data:/var/lib/postgresql/ssl:ro
     command: >
       postgres
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/ssl/server.crt
+      -c ssl_key_file=/var/lib/postgresql/ssl/server.key
+      -c ssl_ca_file=/var/lib/postgresql/ssl/ca.crt
+      -c ssl_ciphers='ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256'
+      -c ssl_prefer_server_ciphers=on
+      -c ssl_min_protocol_version=TLSv1.2
       -c log_connections=on
       -c log_disconnections=on
       -c log_statement=mod
@@ -169,6 +201,9 @@ services:
       - n8n-database
     secrets:
       - postgres_password
+    depends_on:
+      postgres-ssl-setup:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -259,13 +294,16 @@ services:
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
       
-      # Database Configuration
+      # Database Configuration with SSL
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      - DB_POSTGRESDB_SSL=true
+      - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
+      - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
       
       # Redis Configuration (needed for environment variable access)
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -341,13 +379,16 @@ services:
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
       
-      # Database Configuration
+      # Database Configuration with SSL
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      - DB_POSTGRESDB_SSL=true
+      - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
+      - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
       
       # Redis Configuration (needed for environment variable access)
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -431,13 +472,16 @@ services:
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
       
-      # Database Configuration
+      # Database Configuration with SSL
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      - DB_POSTGRESDB_SSL=true
+      - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
+      - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
       
       # Redis Configuration (needed for environment variable access)
       - REDIS_PASSWORD=${REDIS_PASSWORD}
