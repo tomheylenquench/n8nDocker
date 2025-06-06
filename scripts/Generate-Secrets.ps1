@@ -4,7 +4,7 @@
 param(
     [string]$SecretsPath = "secrets",
     [string]$Domain = "n8n.yourdomain.com",
-    [string]$Email = "tom.heylen@gmail.com"
+    [string]$Email = "n8n@localdomain.com"
 )
 
 # Ensure secrets directory exists
@@ -91,6 +91,7 @@ REDIS_PASSWORD=$redisPassword
 # n8n Configuration
 N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
 N8N_ENCRYPTION_KEY=$($secrets["n8n_encryption_key"])
+N8N_EDITOR_BASE_URL=https://$Domain
 
 # Security Settings
 N8N_SECURE_COOKIE=true

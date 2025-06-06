@@ -8,7 +8,7 @@ param(
     [switch]$Deploy,
     [switch]$All,
     [string]$Domain = "n8n.yourdomain.com",
-    [string]$Email = "tom.heylen@gmail.com"
+    [string]$Email = "n8n@localdomain.com"
 )
 
 $ErrorActionPreference = "Stop"
