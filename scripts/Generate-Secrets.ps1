@@ -2,8 +2,9 @@
 # PowerShell script to generate secure passwords and encryption keys for n8n deployment
 
 param(
-    [string]$SecretsPath = "..\secrets",
-    [string]$Domain = "n8n.yourdomain.com"
+    [string]$SecretsPath = "secrets",
+    [string]$Domain = "n8n.yourdomain.com",
+    [string]$Email = "tom.heylen@gmail.com"
 )
 
 # Ensure secrets directory exists
@@ -17,11 +18,16 @@ Write-Host "🔐 Generating secure secrets for n8n deployment..." -ForegroundCol
 function Generate-SecurePassword {
     param([int]$Length = 32)
     
-    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+    # Use only safe characters for environment variables (avoid shell metacharacters)
+    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
     $password = ""
     $random = New-Object System.Random
     
-    for ($i = 0; $i -lt $Length; $i++) {
+    # Ensure password starts with a letter or number to avoid environment variable issues
+    $firstChar = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    $password += $firstChar[$random.Next(0, $firstChar.Length)]
+    
+    for ($i = 1; $i -lt $Length; $i++) {
         $password += $chars[$random.Next(0, $chars.Length)]
     }
     
@@ -57,6 +63,8 @@ foreach ($secret in $secrets.GetEnumerator()) {
 }
 
 # Generate .env file with references to secret files
+$redisPassword = $secrets["redis_password"]
+
 $envContent = @"
 # n8n Secure Docker Deployment Configuration
 # Generated on $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
@@ -65,7 +73,7 @@ $envContent = @"
 N8N_HOST=$Domain
 N8N_PROTOCOL=https
 WEBHOOK_URL=https://$Domain/
-SSL_EMAIL=admin@$($Domain.Split('.')[1..2] -join '.')
+SSL_EMAIL=$Email
 
 # Authentication
 N8N_USER=admin
@@ -78,9 +86,11 @@ POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
 
 # Redis Configuration
 REDIS_PASSWORD_FILE=/run/secrets/redis_password
+REDIS_PASSWORD=$redisPassword
 
 # n8n Configuration
 N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+N8N_ENCRYPTION_KEY=$($secrets["n8n_encryption_key"])
 
 # Security Settings
 N8N_SECURE_COOKIE=true
@@ -99,6 +109,15 @@ EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
 EXECUTIONS_TIMEOUT=3600
 N8N_GRACEFUL_SHUTDOWN_TIMEOUT=30
 
+# Task Runner Settings (Disabled due to compatibility issues in v1.95.3)
+# These features have known issues and should be enabled only after n8n resolves them
+# See: https://github.com/n8n-io/n8n/issues/14144
+N8N_RUNNERS_ENABLED=false
+OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=false
+
+# File Permissions (Recommended for security)
+N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+
 # Logging
 N8N_LOG_LEVEL=info
 N8N_LOG_OUTPUT=console
@@ -108,7 +127,7 @@ GENERIC_TIMEZONE=UTC
 TZ=UTC
 "@
 
-$envPath = Join-Path (Split-Path $SecretsPath -Parent) ".env"
+$envPath = ".env"
 $envContent | Out-File -FilePath $envPath -Encoding UTF8
 Write-Host "✅ Generated environment file: $envPath" -ForegroundColor Cyan
 

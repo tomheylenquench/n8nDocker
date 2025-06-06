@@ -54,6 +54,7 @@ x-shared-n8n: &shared-n8n
     
     # Security
     - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+    - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
     - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
     - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
     - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
@@ -66,15 +67,16 @@ x-shared-n8n: &shared-n8n
     - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
     - DB_POSTGRESDB_USER=${POSTGRES_USER}
     - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
-    - DB_POSTGRESDB_SSL_CA=/home/node/certs/ca.crt
-    - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
+    
+    # Redis Configuration (needed for environment variable access)
+    - REDIS_PASSWORD=${REDIS_PASSWORD}
     
     # Queue Mode Configuration
     - EXECUTIONS_MODE=${EXECUTIONS_MODE:-queue}
     - QUEUE_HEALTH_CHECK_ACTIVE=${QUEUE_HEALTH_CHECK_ACTIVE:-true}
     - QUEUE_BULL_REDIS_HOST=redis
     - QUEUE_BULL_REDIS_PORT=6379
-    - QUEUE_BULL_REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
     
     # Performance Settings
     - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE:-true}
@@ -82,15 +84,22 @@ x-shared-n8n: &shared-n8n
     - EXECUTIONS_TIMEOUT=${EXECUTIONS_TIMEOUT:-3600}
     - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=${N8N_GRACEFUL_SHUTDOWN_TIMEOUT:-30}
     
+    # File Permissions (Security)
+    - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS:-true}
+    
+    # Task Runner Settings (Disabled for stability)
+    - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED:-false}
+    - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS:-false}
+    
     # Logging
     - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
     - N8N_LOG_OUTPUT=${N8N_LOG_OUTPUT:-console}
-    
   volumes:
     - n8n_data:/home/node/.n8n
     - ./certs:/home/node/certs:ro
   networks:
     - n8n-backend
+    - n8n-database
   secrets:
     - postgres_password
     - redis_password
@@ -135,7 +144,7 @@ services:
     environment:
       - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${SSL_EMAIL}
 
-  # PostgreSQL Database with SSL
+  # PostgreSQL Database
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -149,15 +158,8 @@ services:
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./certs:/var/lib/postgresql/certs:ro
     command: >
       postgres
-      -c ssl=on
-      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
-      -c ssl_key_file=/var/lib/postgresql/certs/server.key
-      -c ssl_ca_file=/var/lib/postgresql/certs/ca.crt
-      -c ssl_ciphers='ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256'
-      -c ssl_prefer_server_ciphers=on
       -c log_connections=on
       -c log_disconnections=on
       -c log_statement=mod
@@ -180,9 +182,13 @@ services:
     user: "999:999"
     security_opt:
       - no-new-privileges:true
+    environment:
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
     command: >
-      redis-server
-      --requirepass-file /run/secrets/redis_password
+      sh -c '
+      REDIS_PASSWORD=$$(cat /run/secrets/redis_password);
+      exec redis-server
+      --requirepass "$$REDIS_PASSWORD"
       --appendonly yes
       --appendfsync everysec
       --save 900 1
@@ -192,6 +198,7 @@ services:
       --maxmemory-policy allkeys-lru
       --tcp-keepalive 60
       --timeout 300
+      '
     volumes:
       - redis_data:/data
     networks:
@@ -199,7 +206,7 @@ services:
     secrets:
       - redis_password
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "$(cat /run/secrets/redis_password)", "ping"]
+      test: ["CMD", "sh", "-c", "redis-cli --no-auth-warning -a \"$$(cat /run/secrets/redis_password)\" ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -232,13 +239,87 @@ services:
 
   # n8n Worker Instance 1
   n8n-worker-1:
-    <<: *shared-n8n
-    command: ["n8n", "worker", "--concurrency=10"]
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    command: worker --concurrency=10
     labels:
       - "traefik.enable=false"
     environment:
+      # Core Configuration
+      - NODE_ENV=production
+      - GENERIC_TIMEZONE=${TZ:-UTC}
+      - TZ=${TZ:-UTC}
+      
+      # n8n Configuration
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_PORT=5678
+      
+      # Security
+      - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
+      
+      # Database Configuration
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      
+      # Redis Configuration (needed for environment variable access)
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Queue Mode Configuration
+      - EXECUTIONS_MODE=${EXECUTIONS_MODE:-queue}
+      - QUEUE_HEALTH_CHECK_ACTIVE=${QUEUE_HEALTH_CHECK_ACTIVE:-true}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Performance Settings
+      - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE:-true}
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=${EXECUTIONS_DATA_PRUNE_MAX_COUNT:-10000}
+      - EXECUTIONS_TIMEOUT=${EXECUTIONS_TIMEOUT:-3600}
+      - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=${N8N_GRACEFUL_SHUTDOWN_TIMEOUT:-30}
+      
+      # File Permissions (Security)
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS:-true}
+      
+      # Task Runner Settings (Disabled for stability)
+      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED:-false}
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS:-false}
+      
+      # Logging
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+      - N8N_LOG_OUTPUT=${N8N_LOG_OUTPUT:-console}
+      
       # Worker-specific settings (no UI/API)
       - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./certs:/home/node/certs:ro
+    networks:
+      - n8n-backend
+      - n8n-database
+    secrets:
+      - postgres_password
+      - redis_password
+      - n8n_encryption_key
+      - n8n_admin_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -248,13 +329,87 @@ services:
 
   # n8n Worker Instance 2
   n8n-worker-2:
-    <<: *shared-n8n
-    command: ["n8n", "worker", "--concurrency=10"]
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    command: worker --concurrency=10
     labels:
       - "traefik.enable=false"
     environment:
+      # Core Configuration
+      - NODE_ENV=production
+      - GENERIC_TIMEZONE=${TZ:-UTC}
+      - TZ=${TZ:-UTC}
+      
+      # n8n Configuration
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_PORT=5678
+      
+      # Security
+      - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD_FILE=/run/secrets/n8n_admin_password
+      
+      # Database Configuration
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      
+      # Redis Configuration (needed for environment variable access)
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Queue Mode Configuration
+      - EXECUTIONS_MODE=${EXECUTIONS_MODE:-queue}
+      - QUEUE_HEALTH_CHECK_ACTIVE=${QUEUE_HEALTH_CHECK_ACTIVE:-true}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Performance Settings
+      - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE:-true}
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=${EXECUTIONS_DATA_PRUNE_MAX_COUNT:-10000}
+      - EXECUTIONS_TIMEOUT=${EXECUTIONS_TIMEOUT:-3600}
+      - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=${N8N_GRACEFUL_SHUTDOWN_TIMEOUT:-30}
+      
+      # File Permissions (Security)
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS:-true}
+      
+      # Task Runner Settings (Disabled for stability)
+      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED:-false}
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS:-false}
+      
+      # Logging
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+      - N8N_LOG_OUTPUT=${N8N_LOG_OUTPUT:-console}
+      
       # Worker-specific settings (no UI/API)
       - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./certs:/home/node/certs:ro
+    networks:
+      - n8n-backend
+      - n8n-database
+    secrets:
+      - postgres_password
+      - redis_password
+      - n8n_encryption_key
+      - n8n_admin_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:

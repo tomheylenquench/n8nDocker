@@ -7,7 +7,8 @@ param(
     [switch]$CreateNetworks,
     [switch]$Deploy,
     [switch]$All,
-    [string]$Domain = "n8n.yourdomain.com"
+    [string]$Domain = "n8n.yourdomain.com",
+    [string]$Email = "tom.heylen@gmail.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,7 +78,7 @@ Write-Info "Working directory: $projectRoot"
 # Generate secrets if requested or if All is specified
 if ($GenerateSecrets -or $All) {
     Write-Step "Generating secrets..."
-    & "$PSScriptRoot\Generate-Secrets.ps1" -Domain $Domain
+    & "$PSScriptRoot\Generate-Secrets.ps1" -Domain $Domain -Email $Email
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to generate secrets"
         exit 1
@@ -154,6 +155,20 @@ Write-Info "All required files present ✅"
 # Deploy if requested or if All is specified
 if ($Deploy -or $All) {
     Write-Step "Deploying n8n environment..."
+    
+    # Load environment variables from .env file
+    Write-Info "Loading environment variables from .env file..."
+    if (Test-Path ".env") {
+        Get-Content ".env" | ForEach-Object {
+            if ($_ -match "^([^#][^=]*?)=(.*)$") {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+                Write-Verbose "Set $key"
+            }
+        }
+        Write-Info "Environment variables loaded ✅"
+    }
     
     # Pull latest images
     Write-Info "Pulling latest Docker images..."

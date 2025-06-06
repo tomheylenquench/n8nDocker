@@ -2,7 +2,7 @@
 # PowerShell script to generate self-signed SSL certificates for n8n deployment
 
 param(
-    [string]$CertsPath = "..\certs",
+    [string]$CertsPath = "certs",
     [string]$Domain = "n8n.yourdomain.com",
     [int]$ValidityDays = 365
 )
