@@ -1,6 +1,6 @@
 # Windows PowerShell Guide
 
-Complete setup guide for n8n Docker deployment on Windows using PowerShell scripts.
+Complete setup guide for n8n Docker deployment on Windows using PowerShell scripts for testing production-like environments locally.
 
 ## 📋 Prerequisites
 
@@ -28,10 +28,12 @@ Open PowerShell as Administrator and run:
 cd D:\source\repos\n8nDocker
 
 # Complete setup and deployment
-.\scripts\Deploy-N8N.ps1 -All -Domain "n8n.yourdomain.com"
+.\scripts\Deploy-N8N.ps1 -All -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
 ```
 
-**Replace `n8n.yourdomain.com` with your actual domain!**
+**Replace `n8n.yourdomain.com` with your actual domain and `admin@yourdomain.com` with your email!**
+
+**Note**: The email parameter is optional but recommended for certificate generation.
 
 ### Step 2: Wait for Services
 
@@ -65,12 +67,12 @@ For self-signed certificates:
 ### 1. **Deploy-N8N.ps1** - Master Deployment Script
 
 ```powershell
-# Complete setup and deployment
-.\scripts\Deploy-N8N.ps1 -All -Domain "n8n.yourdomain.com"
+# Complete setup and deployment with email
+.\scripts\Deploy-N8N.ps1 -All -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
 
 # Individual steps
-.\scripts\Deploy-N8N.ps1 -GenerateSecrets -Domain "n8n.yourdomain.com"
-.\scripts\Deploy-N8N.ps1 -GenerateCerts -Domain "n8n.yourdomain.com"
+.\scripts\Deploy-N8N.ps1 -GenerateSecrets -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
+.\scripts\Deploy-N8N.ps1 -GenerateCerts -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
 .\scripts\Deploy-N8N.ps1 -CreateNetworks
 .\scripts\Deploy-N8N.ps1 -Deploy
 
@@ -85,7 +87,7 @@ Get-Help .\scripts\Deploy-N8N.ps1 -Detailed
 - `-Deploy`: Deploy services only
 - `-All`: Complete setup and deployment
 - `-Domain`: Domain name (default: n8n.yourdomain.com)
-- `-Email`: Email address (default: n8n@localdomain.com)
+- `-Email`: Email address for certificate generation (optional, default: n8n@localdomain.com)
 
 ### 2. **Generate-Secrets.ps1** - Secure Password Generation
 
@@ -158,7 +160,7 @@ Get-Help .\scripts\Manage-N8N.ps1 -Detailed
 ### Step 1: Generate Secrets
 
 ```powershell
-.\scripts\Generate-Secrets.ps1 -Domain "n8n.yourdomain.com"
+.\scripts\Generate-Secrets.ps1 -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
 ```
 
 This creates:
@@ -170,11 +172,11 @@ This creates:
 ### Step 2: Generate SSL Certificates
 
 ```powershell
-.\scripts\Generate-Certificates.ps1 -Domain "n8n.yourdomain.com"
+.\scripts\Generate-Certificates.ps1 -Domain "n8n.yourdomain.com" -Email "admin@yourdomain.com"
 ```
 
 This creates:
-- Self-signed CA certificate
+- Self-signed CA certificate for local testing
 - Server certificate for your domain
 - Certificate chain for Traefik
 - Certificate information file (`certs\CERTIFICATE_INFO.md`)
@@ -533,5 +535,10 @@ Get-Help .\scripts\Generate-Secrets.ps1 -Parameter *
 $MyDomain = "n8n.mycompany.com"
 $MyEmail = "admin@mycompany.com"
 
+# Use variables for consistent deployment
 .\scripts\Deploy-N8N.ps1 -All -Domain $MyDomain -Email $MyEmail
+
+# Or set them in your PowerShell profile for permanent use
+echo '$MyN8NDomain = "n8n.mycompany.com"' >> $PROFILE
+echo '$MyN8NEmail = "admin@mycompany.com"' >> $PROFILE
 ``` 

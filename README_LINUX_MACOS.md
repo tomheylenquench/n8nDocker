@@ -1,6 +1,6 @@
 # Linux/macOS/WSL Guide
 
-Complete setup guide for n8n Docker deployment on Linux, macOS, and Windows Subsystem for Linux (WSL) using Bash scripts.
+Complete setup guide for n8n Docker deployment on Linux, macOS, and Windows Subsystem for Linux (WSL) using Bash scripts for testing production-like environments locally.
 
 ## 📋 Prerequisites
 
@@ -54,15 +54,17 @@ cd /path/to/n8nDocker
 **For WSL users on Windows:**
 ```bash
 # From Windows PowerShell/CMD
-wsl ./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com"
+wsl ./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
 
 # Or enter WSL first
 wsl
 cd /mnt/d/source/repos/n8nDocker
-./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com"
+./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
 ```
 
-**Replace `n8n.yourdomain.com` with your actual domain!**
+**Replace `n8n.yourdomain.com` with your actual domain and `admin@yourdomain.com` with your email!**
+
+**Note**: The email parameter is optional but recommended for certificate generation.
 
 ### Step 2: Wait for Services
 
@@ -107,12 +109,12 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 ### 1. **deploy-n8n.sh** - Master Deployment Script
 
 ```bash
-# Complete setup and deployment
-./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com"
+# Complete setup and deployment with email
+./scripts/deploy-n8n.sh --all --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
 
 # Individual steps
-./scripts/deploy-n8n.sh --generate-secrets --domain "n8n.yourdomain.com"
-./scripts/deploy-n8n.sh --generate-certs --domain "n8n.yourdomain.com"
+./scripts/deploy-n8n.sh --generate-secrets --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
+./scripts/deploy-n8n.sh --generate-certs --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
 ./scripts/deploy-n8n.sh --create-networks
 ./scripts/deploy-n8n.sh --deploy
 
@@ -127,7 +129,7 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 - `-y, --deploy`: Deploy services only
 - `-a, --all`: Complete setup and deployment
 - `-d, --domain DOMAIN`: Domain name (default: n8n.yourdomain.com)
-- `-e, --email EMAIL`: Email address (default: n8n@localdomain.com)
+- `-e, --email EMAIL`: Email address for certificate generation (optional, default: n8n@localdomain.com)
 
 ### 2. **generate-secrets.sh** - Secure Password Generation
 
@@ -220,11 +222,11 @@ This creates:
 ### Step 2: Generate SSL Certificates
 
 ```bash
-./scripts/generate-certificates.sh --domain "n8n.yourdomain.com"
+./scripts/generate-certificates.sh --domain "n8n.yourdomain.com" --email "admin@yourdomain.com"
 ```
 
 This creates:
-- Self-signed CA certificate
+- Self-signed CA certificate for local testing
 - Server certificate for your domain
 - Certificate chain for Traefik
 - Certificate information file (`certs/CERTIFICATE_INFO.md`)
@@ -667,4 +669,9 @@ echo 'export N8N_EMAIL="admin@mycompany.com"' >> ~/.n8n-config
 # Source it before running scripts
 source ~/.n8n-config
 ./scripts/deploy-n8n.sh --all --domain "$N8N_DOMAIN" --email "$N8N_EMAIL"
+
+# Or add to your shell profile for permanent use
+echo 'export N8N_DOMAIN="n8n.mycompany.com"' >> ~/.bashrc  # or ~/.zshrc
+echo 'export N8N_EMAIL="admin@mycompany.com"' >> ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # reload shell configuration
 ``` 

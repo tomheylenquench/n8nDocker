@@ -2,9 +2,9 @@
 
 [![Deployment Status](https://img.shields.io/badge/status-verified%20working-green)](https://github.com/tomheylenquench/n8nDocker) [![Version](https://img.shields.io/badge/n8n-1.95.3-blue)](https://github.com/n8n-io/n8n) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Read Only](https://img.shields.io/badge/repository-read--only-red)](https://github.com/tomheylenquench/n8nDocker) [![Rulesets](https://img.shields.io/badge/protected%20by-GitHub%20Rulesets-blue)](https://github.com/tomheylenquench/n8nDocker/settings/rules)
 
-> **📢 NOTICE**: This is a **read-only repository** protected by GitHub Rulesets. It provides a complete, production-ready n8n deployment solution. For support, please refer to the documentation. Issues and pull requests are automatically closed.
+> **📢 NOTICE**: This is a **read-only repository** protected by GitHub Rulesets. It provides a complete n8n deployment solution for **local testing of production-like environments**. For support, please refer to the documentation. Issues and pull requests are automatically closed.
 
-A comprehensive, production-ready n8n deployment with queue mode, SSL/TLS security, and enterprise-grade features. Compatible with Windows, Linux, macOS, and WSL environments.
+A comprehensive n8n deployment for testing production-like setups locally on your PC. Features queue mode, SSL/TLS security, and scalable architecture. Compatible with Windows, Linux, macOS, and WSL environments.
 
 ## 🚀 Features
 
@@ -15,7 +15,7 @@ A comprehensive, production-ready n8n deployment with queue mode, SSL/TLS securi
 - **Secrets Management**: Docker secrets for sensitive data
 - **Network Isolation**: Multi-tier network architecture
 - **Cross-Platform**: Native scripts for Windows (PowerShell) and Linux/macOS/WSL (Bash)
-- **Automated Setup**: One-command deployment scripts
+- **Automated Setup**: One-command deployment scripts with optional email configuration
 - **Monitoring**: Health checks and comprehensive logging
 - **Backup & Recovery**: Automated backup and restore functionality
 
@@ -218,22 +218,32 @@ The deployment supports horizontal scaling of worker instances:
 - Secrets and certificates are platform-independent
 - Docker configuration remains identical
 
-## 🛡️ Production Readiness
+## 🧪 Local Testing Environment
 
-### Security Checklist
+This deployment simulates a production-like environment for local development and testing purposes.
+
+### Security Features for Testing
+- ✅ Self-signed certificates for local SSL testing
+- ✅ Secure password generation for all services
+- ✅ Docker secrets implementation
+- ✅ Network isolation between services
+- ✅ SSL/TLS encryption for database connections
+
+### Performance Testing Capabilities
+- ✅ Horizontal scaling with multiple workers
+- ✅ Queue-based workflow execution
+- ✅ Database connection pooling
+- ✅ Health checks and monitoring
+- ✅ Resource usage tracking
+
+### When Moving to Production
+If you decide to use this setup as a basis for production:
 - [ ] Replace self-signed certificates with CA-issued certificates
 - [ ] Change default passwords and enable 2FA
-- [ ] Configure firewall rules and network access controls
-- [ ] Set up monitoring and alerting
-- [ ] Implement backup and disaster recovery procedures
-- [ ] Regular security updates and patch management
-
-### Performance Optimization
-- [ ] Configure resource limits based on workload
-- [ ] Set up database performance monitoring
-- [ ] Implement caching strategies
+- [ ] Configure proper firewall rules and network security
+- [ ] Set up external monitoring and alerting
+- [ ] Implement proper backup and disaster recovery
 - [ ] Configure log aggregation and analysis
-- [ ] Set up automated scaling policies
 
 ## 📚 Resources
 
@@ -260,4 +270,4 @@ This deployment configuration is provided as-is under the MIT License. n8n itsel
 
 ---
 
-**⚠️ Important**: This setup includes self-signed certificates suitable for development and testing. For production use, obtain certificates from a trusted Certificate Authority or use Let's Encrypt.
+**⚠️ Important**: This setup includes self-signed certificates and is designed for **local testing of production-like environments**. It should not be used directly in production without proper security hardening and CA-issued certificates.
