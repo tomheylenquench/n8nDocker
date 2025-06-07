@@ -1,6 +1,8 @@
 # Secure n8n Docker Deployment
 
-[![Deployment Status](https://img.shields.io/badge/status-verified%20working-green)](https://github.com/your-repo) [![Version](https://img.shields.io/badge/n8n-1.95.3-blue)](https://github.com/n8n-io/n8n)
+[![Deployment Status](https://img.shields.io/badge/status-verified%20working-green)](https://github.com/tomheylenquench/n8nDocker) [![Version](https://img.shields.io/badge/n8n-1.95.3-blue)](https://github.com/n8n-io/n8n) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Read Only](https://img.shields.io/badge/repository-read--only-red)](https://github.com/tomheylenquench/n8nDocker)
+
+> **📢 NOTICE**: This is a **read-only repository**. It provides a complete, production-ready n8n deployment solution. For support, please refer to the documentation. Issues and pull requests are disabled.
 
 A comprehensive, production-ready n8n deployment with queue mode, SSL/TLS security, and enterprise-grade features. Compatible with Windows, Linux, macOS, and WSL environments.
 
