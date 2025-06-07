@@ -43,12 +43,33 @@ This repository serves as a **reference implementation** providing:
 - ✅ **Cross-platform compatibility**
 - ✅ **Comprehensive documentation**
 
+### 🔒 Repository Protection
+
+This repository uses **GitHub Rulesets** to enforce read-only access:
+
+- **Main Branch Lockdown**: Prevents all direct pushes and requires reviews
+- **All Branches Protection**: Blocks force pushes and deletions across all branches
+- **Automated Closure**: GitHub Actions automatically close issues and PRs with helpful guidance
+- **Transparent Rules**: All users can view active rulesets (Settings → Rules → Rulesets)
+
+These modern rulesets provide layered protection while maintaining full transparency about repository restrictions.
+
 ### 📦 Using This Code
 
 1. **Download**: Use the [latest release](https://github.com/tomheylenquench/n8nDocker/releases) 
 2. **Deploy**: Follow the platform-specific README guides
 3. **Customize**: Modify for your specific needs
 4. **Maintain**: Keep your fork updated with security patches
+
+### 🔍 Understanding Repository Restrictions
+
+You can view the active protection rules that keep this repository read-only:
+
+1. **View Rulesets**: Go to Settings → Rules → Rulesets (visible to all users)
+2. **Check Active Rules**: See exactly which restrictions apply to each branch
+3. **Understand Enforcement**: Review why certain actions are blocked
+
+This transparency helps you understand the repository's protection model without needing admin access.
 
 ### 🔄 Forking and Customization
 
@@ -58,6 +79,8 @@ If you need to modify this deployment:
 2. **Make your changes** in your fork
 3. **Maintain your fork** independently
 4. **Share improvements** with the community through your own repository
+
+**Note**: Your fork won't inherit the rulesets - you'll have full control over your copy.
 
 ### 📄 License
 
