@@ -71,12 +71,161 @@ Internet → Traefik (SSL) → n8n Main Instance → PostgreSQL
 | PostgreSQL | Database with SSL encryption | database | ✅ | Single |
 | Redis | Message queue | backend | 🔐 | Single |
 
-### Network Architecture
+### Network Architecture & Security
 
-- **Web Network**: Public-facing services (Traefik, n8n main)
-- **Backend Network**: Internal services communication
-- **Database Network**: Isolated database access
-- **No Direct Database Access**: Database only accessible via backend network
+This deployment implements a **multi-tier network security architecture** that provides defense-in-depth through network isolation and segmentation.
+
+#### 🌐 Network Topology
+
+```
+┌─────────────────┐
+│     Internet    │
+└─────────┬───────┘
+          │ HTTPS (443) / HTTP (80)
+          │
+┌─────────▼───────┐     ┌────────────────────────────┐
+│     Traefik     │ ←── │        web network         │
+│  (Reverse Proxy)│     │    (External Network)     │
+└─────────┬───────┘     └────────────────────────────┘
+          │ HTTPS Internal
+          │
+┌─────────▼───────┐     ┌────────────────────────────┐
+│   n8n Main      │ ←── │    n8n-backend network     │
+│ (UI/API/Queue)  │     │   (Internal Bridge)        │
+└─────────┬───────┘     └──┬─────────────────────────┘
+          │                │
+          │                ▼
+          │         ┌──────────────┐
+          │         │    Redis     │
+          │         │ (Message Queue)
+          │         └──────────────┘
+          │                ▲
+          │                │
+          │         ┌──────┴──────┐
+          │         │             │
+          │    ┌────▼────┐   ┌────▼────┐
+          │    │n8n      │   │n8n      │
+          │    │Worker-1 │   │Worker-2 │
+          │    └─────────┘   └─────────┘
+          │
+          ▼
+┌─────────────────┐     ┌────────────────────────────┐
+│   PostgreSQL    │ ←── │   n8n-database network     │
+│   (Database)    │     │   (Internal Bridge)        │
+└─────────────────┘     └────────────────────────────┘
+```
+
+#### 🔒 Container Network Connections
+
+| Container | web | n8n-backend | n8n-database | External Access | Security Level |
+|-----------|-----|-------------|--------------|-----------------|----------------|
+| **Traefik** | ✅ | ❌ | ❌ | ✅ Public | **Edge** |
+| **n8n Main** | ✅ | ✅ | ✅ | ✅ Via Traefik | **DMZ** |
+| **n8n Workers** | ❌ | ✅ | ✅ | ❌ Internal Only | **Internal** |
+| **Redis** | ❌ | ✅ | ❌ | ❌ Internal Only | **Backend** |
+| **PostgreSQL** | ❌ | ❌ | ✅ | ❌ Internal Only | **Data** |
+
+#### 🛡️ Security Architecture Benefits
+
+##### **1. Network Segmentation**
+- **Public Tier** (`web` network): Only Traefik has internet access
+- **Application Tier** (`n8n-backend`): Internal service communication
+- **Data Tier** (`n8n-database`): Database isolation with controlled access
+
+##### **2. Zero-Trust Internal Access**
+```yaml
+# Example: PostgreSQL is completely isolated
+postgres:
+  networks:
+    - n8n-database  # ONLY this network
+  # No access to web or backend networks
+  # Only containers on n8n-database can connect
+```
+
+##### **3. Traffic Flow Control**
+
+**✅ Allowed Traffic Flows:**
+```
+Internet → Traefik → n8n Main → PostgreSQL
+                  ↓
+              Redis ← n8n Workers
+```
+
+**❌ Blocked Traffic Flows:**
+```
+Internet ⛔ n8n Workers (No direct access)
+Internet ⛔ PostgreSQL (No direct access)  
+Internet ⛔ Redis (No direct access)
+n8n Workers ⛔ Internet (No outbound internet)
+```
+
+##### **4. Attack Surface Reduction**
+
+| Component | Exposure | Attack Vectors Mitigated |
+|-----------|----------|-------------------------|
+| **PostgreSQL** | Database network only | • Direct database attacks<br>• SQL injection from external sources<br>• Unauthorized database access |
+| **Redis** | Backend network only | • Cache poisoning attacks<br>• Direct Redis exploitation<br>• Memory dump attacks |
+| **n8n Workers** | Internal networks only | • Direct worker exploitation<br>• Malicious workflow injection<br>• Resource exhaustion attacks |
+
+##### **5. Network-Level Authentication**
+
+```yaml
+# Each network requires explicit connection
+networks:
+  web:
+    external: true          # Managed by Docker
+  n8n-backend:
+    driver: bridge
+    internal: false         # Allows outbound (for worker operations)
+  n8n-database:
+    driver: bridge
+    internal: true          # No internet access
+```
+
+#### 🚦 Security Enforcement Examples
+
+##### **Database Protection:**
+```bash
+# PostgreSQL can ONLY be accessed by containers on n8n-database network
+# Direct database connections from internet are impossible
+$ docker exec -it postgres psql  # ✅ Works (authorized container)
+$ psql -h your-server.com         # ❌ Blocked (no external access)
+```
+
+##### **Worker Isolation:**
+```bash
+# Workers cannot be directly accessed from internet
+$ curl https://your-domain.com/    # ✅ Reaches n8n Main via Traefik
+$ curl https://your-domain.com:worker  # ❌ No route (workers not exposed)
+```
+
+##### **Service Communication:**
+```bash
+# Services can only communicate through designated networks
+n8n-main → postgres     # ✅ Both on n8n-database network
+redis → postgres        # ❌ Redis not on n8n-database network
+traefik → postgres      # ❌ Traefik not on n8n-database network
+```
+
+#### 🔍 Network Security Monitoring
+
+The deployment includes network-level security monitoring:
+
+- **Connection Logging**: All inter-service connections are logged
+- **Failed Connection Alerts**: Attempted unauthorized connections are recorded
+- **Network Health Checks**: Each network segment is monitored for availability
+- **Traffic Analysis**: Network traffic patterns are tracked for anomalies
+
+#### 📊 Security Metrics
+
+| Security Layer | Protection Level | Monitoring |
+|----------------|------------------|------------|
+| **Edge (Traefik)** | TLS termination, WAF rules | ✅ Access logs |
+| **Application (n8n)** | Authentication, authorization | ✅ App logs |
+| **Backend (Redis)** | Password auth, network isolation | ✅ Connection logs |
+| **Database (PostgreSQL)** | SSL, network isolation, auth | ✅ Query logs |
+
+This network architecture ensures that even if one component is compromised, the attack cannot easily spread to other parts of the system due to network-level isolation and access controls.
 
 ## 📁 Project Structure
 
