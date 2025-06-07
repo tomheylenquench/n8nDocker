@@ -1,0 +1,47 @@
+name: Auto Close Issues and PRs
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  auto-close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Issue
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thank you for your interest in this project!\n\n🔒 **This is a read-only repository** designed to provide a stable, production-ready n8n deployment solution.\n\n📚 **For help, please refer to:**\n- [Windows Guide](README_WINDOWS.md)\n- [Linux/macOS/WSL Guide](README_LINUX_MACOS.md)\n- [Official n8n Documentation](https://docs.n8n.io/)\n- [n8n Community Forum](https://community.n8n.io/)\n\n🍴 **To modify this deployment:** Fork this repository and make changes in your own copy.\n\nThis issue will be automatically closed.'
+            })
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            })
+
+      - name: Close Pull Request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thank you for your contribution!\n\n🔒 **This is a read-only repository** and does not accept pull requests.\n\n🍴 **To modify this deployment:** Please fork this repository and maintain your changes in your own copy.\n\n📚 **For help with the deployment:** Please refer to the documentation in the README files.\n\nThis pull request will be automatically closed.'
+            })
+            github.rest.pulls.update({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            }) 
