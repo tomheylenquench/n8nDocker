@@ -57,7 +57,6 @@ x-shared-n8n: &shared-n8n
     
     # Security
     - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
-    - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
     - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
     - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
     - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
@@ -288,7 +287,7 @@ services:
       
       # Security
       - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
@@ -373,7 +372,7 @@ services:
       
       # Security
       - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
@@ -466,7 +465,7 @@ services:
       
       # Security
       - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
